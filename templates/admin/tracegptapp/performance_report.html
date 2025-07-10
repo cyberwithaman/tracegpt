@@ -1,0 +1,220 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/nvd3@1.8.6/build/nv.d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/nvd3@1.8.6/build/nv.d3.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<style>
+    .metrics-row {
+        display: flex;
+        flex-wrap: wrap;
+        margin: 0 -10px;
+    }
+    
+    .metric-card {
+        flex: 1;
+        min-width: 200px;
+        margin: 10px;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .metric-card.primary {
+        background: linear-gradient(135deg, #79CBCA 0%, #77A1D3 100%);
+        color: white;
+    }
+    
+    .metric-card.info {
+        background: linear-gradient(135deg, #7F7FD5 0%, #86A8E7 50%, #91EAE4 100%);
+        color: white;
+    }
+    
+    .metric-card.warning {
+        background: linear-gradient(135deg, #FDB99B 0%, #CF8BF3 100%);
+        color: white;
+    }
+    
+    .metric-card.success {
+        background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+        color: white;
+    }
+    
+    .metric-value {
+        font-size: 36px;
+        font-weight: bold;
+        margin: 15px 0 5px;
+    }
+    
+    .metric-label {
+        text-transform: uppercase;
+        font-size: 14px;
+        opacity: 0.8;
+    }
+    
+    .chart-container {
+        background-color: #fff;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .chart-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin-bottom: 20px;
+    }
+    
+    .chart {
+        height: 350px;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>{{ title }}</h1>
+    
+    <div class="module">
+        <div style="margin: 20px 0;">
+            <a href="{% url 'admin:tracegptapp_chattrace_changelist' %}" class="button">
+                Back to Trace List
+            </a>
+        </div>
+        
+        <!-- Metrics Overview -->
+        <div class="metrics-row">
+            <div class="metric-card primary">
+                <div class="metric-label">Total Traces</div>
+                <div class="metric-value">{{ metrics.total_traces }}</div>
+            </div>
+            
+            <div class="metric-card info">
+                <div class="metric-label">Average Runtime</div>
+                <div class="metric-value">{{ metrics.avg_runtime }}s</div>
+            </div>
+            
+            <div class="metric-card warning">
+                <div class="metric-label">Max Runtime</div>
+                <div class="metric-value">{{ metrics.max_runtime }}s</div>
+            </div>
+            
+            <div class="metric-card success">
+                <div class="metric-label">Min Runtime</div>
+                <div class="metric-value">{{ metrics.min_runtime }}s</div>
+            </div>
+        </div>
+        
+        <!-- Weekly Runtime Trend -->
+        <div class="chart-container">
+            <h2 class="chart-title">Weekly Average Runtime Trend</h2>
+            <div id="runtime-trend-chart" class="chart">
+                <svg></svg>
+            </div>
+        </div>
+        
+        <!-- Hourly Activity Heatmap -->
+        <div class="chart-container">
+            <h2 class="chart-title">Activity Heatmap (Traces by Hour)</h2>
+            <div id="hourly-heatmap" class="chart"></div>
+        </div>
+        
+        <!-- Runtime Distribution -->
+        <div class="chart-container">
+            <h2 class="chart-title">Runtime Distribution</h2>
+            <div id="runtime-distribution" class="chart">
+                <img id="runtime-histogram-img" style="max-width: 100%;" />
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extrajs %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load the runtime histogram image
+    fetch("{% url 'admin:chattrace_matplotlib_chart' 'runtime_histogram' %}")
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('runtime-histogram-img').src = 'data:image/png;base64,' + data.image;
+        })
+        .catch(error => console.error('Error loading chart:', error));
+    
+    // Render Weekly Runtime Trend Chart
+    const trendData = {{ metrics.trend_data|safe }};
+    
+    nv.addGraph(function() {
+        const chart = nv.models.lineChart()
+            .x(function(d, i) { return i; })
+            .y(function(d) { return d; })
+            .useInteractiveGuideline(true)
+            .margin({left: 60, bottom: 80});
+        
+        chart.xAxis
+            .tickFormat(function(i) {
+                return trendData.labels[i];
+            })
+            .rotateLabels(-45);
+        
+        chart.yAxis
+            .tickFormat(d3.format('.2f'))
+            .axisLabel('Average Runtime (seconds)');
+        
+        const chartData = [{
+            key: 'Weekly Average Runtime',
+            values: trendData.data,
+            color: '#5470c6'
+        }];
+        
+        d3.select('#runtime-trend-chart svg')
+            .datum(chartData)
+            .transition().duration(500)
+            .call(chart);
+        
+        nv.utils.windowResize(chart.update);
+        
+        return chart;
+    });
+    
+    // Render Hourly Activity Heatmap with ApexCharts
+    const hourlyData = {{ hourly_activity|safe }};
+    
+    if (hourlyData.data && hourlyData.data.length > 0) {
+        const options = {
+            series: hourlyData.data,
+            chart: {
+                height: 350,
+                type: 'heatmap',
+            },
+            dataLabels: {
+                enabled: false
+            },
+            colors: ["#008FFB"],
+            title: {
+                text: 'Trace Activity by Hour of Day'
+            },
+            xaxis: {
+                type: 'category',
+                labels: {
+                    rotate: -45,
+                    rotateAlways: true
+                }
+            }
+        };
+        
+        const chart = new ApexCharts(document.querySelector("#hourly-heatmap"), options);
+        chart.render();
+    } else {
+        document.getElementById('hourly-heatmap').innerHTML = 
+            '<div style="text-align:center;padding:40px;color:#888;">No hourly activity data available.</div>';
+    }
+});
+</script>
+{% endblock %} 

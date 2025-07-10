@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+
+{% block title %}TraceGPT - Trace Detail{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Home</a></li>
+                <li class="breadcrumb-item"><a href="/logs/">Logs</a></li>
+                <li class="breadcrumb-item active">Trace #{{ trace.id }}</li>
+            </ol>
+        </nav>
+        
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>Trace Detail</h3>
+            <div>
+                <a href="/trace/{{ trace.id }}/export/" class="btn btn-outline-primary">
+                    <i class="bi bi-download"></i> Export JSON
+                </a>
+                <a href="/logs/" class="btn btn-outline-secondary ms-2">
+                    <i class="bi bi-arrow-left"></i> Back to Logs
+                </a>
+            </div>
+        </div>
+        
+        <!-- Trace Information -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary bg-opacity-10">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-info-circle"></i> Trace Information
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-4 fw-bold">Trace ID:</div>
+                            <div class="col-md-8">{{ trace.run_id }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4 fw-bold">Created At:</div>
+                            <div class="col-md-8">{{ trace.created_at|date:"Y-m-d H:i:s" }}</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4 fw-bold">Status:</div>
+                            <div class="col-md-8">
+                                <span class="badge {% if trace.status == 'success' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ trace.status|title }}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4 fw-bold">Runtime:</div>
+                            <div class="col-md-8">{{ trace.runtime_seconds|floatformat:3 }} seconds</div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4 fw-bold">Tags:</div>
+                            <div class="col-md-8">
+                                {% for tag in trace.tags %}
+                                <span class="badge bg-{% if tag == 'correct' %}success{% elif tag == 'misleading' %}warning{% elif tag == 'incomplete' %}info{% else %}secondary{% endif %} me-1">
+                                    {{ tag }}
+                                </span>
+                                {% empty %}
+                                <span class="text-muted">No tags</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Input/Output -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary bg-opacity-10">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-chat-dots"></i> Conversation
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <h6 class="text-muted mb-2">Input Prompt:</h6>
+                            <div class="p-3 border rounded bg-light">
+                                {{ trace.input_prompt|linebreaks }}
+                            </div>
+                        </div>
+                        <div>
+                            <h6 class="text-muted mb-2">Output Response:</h6>
+                            <div class="p-3 border rounded bg-light">
+                                {{ trace.output_response|linebreaks }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6">
+                <!-- Processing Steps -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-info bg-opacity-10">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-activity"></i> Processing Steps
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if steps %}
+                            <div class="timeline">
+                                {% for step in steps %}
+                                <div class="trace-step trace-step-{{ step.step_type }}">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="mb-1">{{ step.step_name }}</h6>
+                                        <span class="badge bg-secondary">{{ step.runtime_seconds|floatformat:3 }}s</span>
+                                    </div>
+                                    <p class="text-muted mb-2">
+                                        <small>
+                                            <i class="bi bi-tag"></i> {{ step.step_type }} | 
+                                            <i class="bi bi-clock"></i> {{ step.start_time|date:"H:i:s.u" }} - {{ step.end_time|date:"H:i:s.u" }}
+                                        </small>
+                                    </p>
+                                    
+                                    <div class="accordion" id="step{{ step.id }}Accordion">
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed" type="button" 
+                                                        data-bs-toggle="collapse" data-bs-target="#step{{ step.id }}Input">
+                                                    Input Data
+                                                </button>
+                                            </h2>
+                                            <div id="step{{ step.id }}Input" class="accordion-collapse collapse">
+                                                <div class="accordion-body">
+                                                    <pre>{{ step.input_data|pprint }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="accordion-item">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed" type="button" 
+                                                        data-bs-toggle="collapse" data-bs-target="#step{{ step.id }}Output">
+                                                    Output Data
+                                                </button>
+                                            </h2>
+                                            <div id="step{{ step.id }}Output" class="accordion-collapse collapse">
+                                                <div class="accordion-body">
+                                                    <pre>{{ step.output_data|pprint }}</pre>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning">
+                                No processing steps recorded for this trace.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Raw Trace Data -->
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-secondary bg-opacity-10">
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-code-square"></i> Raw Trace Data
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i> This is the raw trace data as stored by LangSmith.
+                        </div>
+                        <pre class="p-3 border rounded bg-light" style="max-height: 500px; overflow: auto;">{{ trace_data_json }}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

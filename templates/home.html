@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+
+{% block title %}TraceGPT - Chat Interface{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary bg-opacity-10">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-chat-dots"></i> Chat Interface
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="chat-container" class="chat-container border rounded p-3 mb-3 bg-light">
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-robot display-1"></i>
+                        <p class="mt-3">Enter a prompt below to start chatting</p>
+                    </div>
+                </div>
+                
+                <form id="chat-form" class="mt-3">
+                    {% csrf_token %}
+                    <input type="hidden" id="example-id" name="example_id" value="{{ selected_example.id|default:'' }}">
+                    
+                    <div class="input-group">
+                        <textarea id="input-prompt" name="input_prompt" class="form-control" rows="3" 
+                                  placeholder="Type your message here..." 
+                                  required>{{ selected_example.input_prompt|default:'' }}</textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-3">
+                        <div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-send"></i> Send
+                            </button>
+                            <button type="button" id="clear-chat" class="btn btn-outline-secondary ms-2">
+                                <i class="bi bi-trash"></i> Clear
+                            </button>
+                        </div>
+                        <a href="/logs/" class="btn btn-outline-primary">
+                            <i class="bi bi-journal-text"></i> View All Logs
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Trace Visualization -->
+        <div class="card shadow-sm mt-4">
+            <div class="card-header bg-info bg-opacity-10">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-activity"></i> Trace Visualization
+                </h5>
+            </div>
+            <div class="card-body">
+                <div id="trace-container" class="d-none">
+                    <div class="alert alert-info mb-3" role="alert">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <i class="bi bi-info-circle"></i> Trace ID: <span id="trace-id"></span>
+                            </div>
+                            <div>
+                                Runtime: <span id="trace-runtime" class="badge bg-secondary"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h6 class="text-muted mb-3">Processing Steps</h6>
+                    <div id="trace-steps"></div>
+                    
+                    <div class="text-end mt-3">
+                        <a id="view-trace-link" href="#" class="btn btn-sm btn-outline-info">
+                            <i class="bi bi-eye"></i> View Full Trace
+                        </a>
+                    </div>
+                </div>
+                <div id="trace-placeholder" class="text-center py-4 text-muted">
+                    <i class="bi bi-activity display-4"></i>
+                    <p class="mt-2">Send a message to see trace information</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sample Examples -->
+    <div class="col-lg-4 mt-4 mt-lg-0">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success bg-opacity-10">
+                <h5 class="card-title mb-0">
+                    <i class="bi bi-list-check"></i> Sample Examples
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    {% if examples %}
+                        {% for example in examples %}
+                        <a href="/?example_id={{ example.id }}" 
+                           class="list-group-item list-group-item-action {% if selected_example.id == example.id %}active{% endif %}">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-1">{{ example.title }}</h6>
+                                <span>
+                                    {% for tag in example.tags %}
+                                    <span class="badge bg-{% if tag == 'correct' %}success{% elif tag == 'misleading' %}warning{% elif tag == 'incomplete' %}info{% else %}secondary{% endif %} text-nowrap">
+                                        {{ tag }}
+                                    </span>
+                                    {% endfor %}
+                                </span>
+                            </div>
+                            <small class="text-truncate d-inline-block" style="max-width: 100%;">
+                                {{ example.input_prompt|truncatechars:60 }}
+                            </small>
+                        </a>
+                        {% endfor %}
+                    {% else %}
+                        <div class="list-group-item text-center py-4">
+                            <p class="mb-0 text-muted">No examples available. Add some in the admin panel.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-footer">
+                <a href="/admin/tracegptapp/chatexample/add/" target="_blank" class="btn btn-sm btn-outline-success">
+                    <i class="bi bi-plus-circle"></i> Add New Example
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatForm = document.getElementById('chat-form');
+        const chatContainer = document.getElementById('chat-container');
+        const inputPrompt = document.getElementById('input-prompt');
+        const clearChatBtn = document.getElementById('clear-chat');
+        const traceContainer = document.getElementById('trace-container');
+        const tracePlaceholder = document.getElementById('trace-placeholder');
+        const traceId = document.getElementById('trace-id');
+        const traceRuntime = document.getElementById('trace-runtime');
+        const traceSteps = document.getElementById('trace-steps');
+        const viewTraceLink = document.getElementById('view-trace-link');
+        
+        // Helper function to add a message to the chat
+        function addMessage(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('mb-3', 'p-3', 'rounded');
+            
+            if (isUser) {
+                messageDiv.classList.add('bg-primary', 'bg-opacity-10', 'text-dark');
+                messageDiv.innerHTML = `<strong>You:</strong> ${content}`;
+            } else {
+                messageDiv.classList.add('bg-light');
+                messageDiv.innerHTML = `<strong>TraceGPT:</strong> ${content}`;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // Handle form submission
+        chatForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const userInput = inputPrompt.value.trim();
+            if (!userInput) return;
+            
+            // Clear existing welcome message if present
+            if (chatContainer.querySelector('.text-center')) {
+                chatContainer.innerHTML = '';
+            }
+            
+            // Add user message
+            addMessage(userInput, true);
+            
+            // Set loading state
+            const loadingDiv = document.createElement('div');
+            loadingDiv.classList.add('mb-3', 'p-3', 'bg-light', 'rounded');
+            loadingDiv.innerHTML = `<strong>TraceGPT:</strong> <div class="spinner-border spinner-border-sm" role="status"></div> Thinking...`;
+            chatContainer.appendChild(loadingDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // Disable form while processing
+            const submitBtn = chatForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            
+            // Prepare form data
+            const formData = new FormData(chatForm);
+            
+            // Send request
+            fetch('/process_chat/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading message
+                chatContainer.removeChild(loadingDiv);
+                
+                if (data.success) {
+                    // Add response message
+                    addMessage(data.response, false);
+                    
+                    // Update trace visualization
+                    updateTraceVisualization(data);
+                } else {
+                    // Show error message
+                    const errorDiv = document.createElement('div');
+                    errorDiv.classList.add('alert', 'alert-danger');
+                    errorDiv.textContent = data.error || 'An error occurred while processing your request.';
+                    chatContainer.appendChild(errorDiv);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                chatContainer.removeChild(loadingDiv);
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.classList.add('alert', 'alert-danger');
+                errorDiv.textContent = 'Network error occurred. Please try again.';
+                chatContainer.appendChild(errorDiv);
+            })
+            .finally(() => {
+                // Re-enable form
+                submitBtn.disabled = false;
+                
+                // Clear input if not using an example
+                if (!document.getElementById('example-id').value) {
+                    inputPrompt.value = '';
+                }
+            });
+        });
+        
+        // Clear chat
+        clearChatBtn.addEventListener('click', function() {
+            // Reset chat container
+            chatContainer.innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-robot display-1"></i>
+                    <p class="mt-3">Enter a prompt below to start chatting</p>
+                </div>
+            `;
+            
+            // Reset trace visualization
+            traceContainer.classList.add('d-none');
+            tracePlaceholder.classList.remove('d-none');
+            
+            // Clear input if not using an example
+            if (!document.getElementById('example-id').value) {
+                inputPrompt.value = '';
+            }
+        });
+        
+        // Update trace visualization
+        function updateTraceVisualization(data) {
+            // Show trace container and hide placeholder
+            traceContainer.classList.remove('d-none');
+            tracePlaceholder.classList.add('d-none');
+            
+            // Update trace ID and runtime
+            traceId.textContent = data.trace_id;
+            traceRuntime.textContent = `${data.runtime.toFixed(2)}s`;
+            
+            // Update trace steps
+            traceSteps.innerHTML = '';
+            
+            data.steps.forEach(step => {
+                const stepDiv = document.createElement('div');
+                stepDiv.classList.add('trace-step', `trace-step-${step.type}`);
+                
+                stepDiv.innerHTML = `
+                    <div class="d-flex justify-content-between">
+                        <strong>${step.name}</strong>
+                        <span class="badge bg-secondary">${step.runtime.toFixed(2)}s</span>
+                    </div>
+                    <small class="text-muted">${step.type}</small>
+                `;
+                
+                traceSteps.appendChild(stepDiv);
+            });
+            
+            // Update view trace link
+            viewTraceLink.href = `/trace/${data.trace_id}/`;
+        }
+    });
+</script>
+{% endblock %} 

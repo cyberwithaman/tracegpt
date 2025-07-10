@@ -1,0 +1,17 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block sidebar %}
+{{ block.super }}
+<div class="module">
+  <h2>{% trans 'TraceGPT Analytics' %}</h2>
+  <ul class="actionlist">
+    <li class="changelink">
+      <a href="{% url 'admin:chattrace_performance_report' %}">{% trans 'Performance Report' %}</a>
+    </li>
+    <li class="changelink">
+      <a href="{% url 'admin:visualizations_dashboard' %}">{% trans 'Data Visualizations' %}</a>
+    </li>
+  </ul>
+</div>
+{% endblock %} 

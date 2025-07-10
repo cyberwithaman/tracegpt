@@ -1,0 +1,395 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}TraceGPT - Analytics Dashboard{% endblock %}
+
+{% block extra_head %}
+<script src="https://d3js.org/d3.v3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/nvd3@1.8.6/build/nv.d3.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/nvd3@1.8.6/build/nv.d3.min.css" rel="stylesheet">
+
+<style>
+    .analytics-container {
+        background-color: #f8f9fa;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    .metrics-row {
+        display: flex;
+        flex-wrap: wrap;
+        margin: -10px;
+    }
+    .metric-card {
+        flex: 1 0 200px;
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 10px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+    .metric-value {
+        font-size: 36px;
+        font-weight: bold;
+        margin: 10px 0;
+        color: #0d6efd;
+    }
+    .metric-label {
+        font-size: 14px;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .chart-card {
+        background-color: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .chart-title {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 18px;
+        font-weight: 600;
+        color: #212529;
+    }
+    .time-filter {
+        margin-bottom: 15px;
+    }
+    .time-filter button {
+        padding: 5px 15px;
+        background-color: #f8f9fa;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        margin-right: 5px;
+        cursor: pointer;
+    }
+    .time-filter button.active {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    .recent-traces {
+        margin-top: 20px;
+    }
+    .trace-item {
+        padding: 10px;
+        border-bottom: 1px solid #e9ecef;
+    }
+    .trace-item:last-child {
+        border-bottom: none;
+    }
+    .chart-container {
+        min-height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Analytics Dashboard</h1>
+    
+    <div class="analytics-container">
+        <h2 class="mb-4">Overview</h2>
+        
+        <!-- Metrics Cards -->
+        <div class="metrics-row">
+            <div class="metric-card">
+                <div class="metric-label">Total Traces</div>
+                <div class="metric-value">{{ trace_count }}</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Chat Examples</div>
+                <div class="metric-value">{{ example_count }}</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Avg Runtime</div>
+                <div class="metric-value">{{ avg_runtime }}s</div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-label">Contact Messages</div>
+                <div class="metric-value">{{ contact_count }}</div>
+            </div>
+        </div>
+        
+        <!-- Trace Activity Chart -->
+        <div class="chart-card mt-4">
+            <h3 class="chart-title">Trace Activity</h3>
+            <div class="time-filter">
+                <button class="time-btn active" data-days="7">7 days</button>
+                <button class="time-btn" data-days="30">30 days</button>
+                <button class="time-btn" data-days="90">90 days</button>
+                <button class="time-btn" data-days="365">1 year</button>
+            </div>
+            <div id="trace-activity-chart" class="chart-container">
+                <svg></svg>
+            </div>
+        </div>
+        
+        <!-- Charts Row -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="chart-card">
+                    <h3 class="chart-title">Runtime Distribution</h3>
+                    <div id="runtime-chart" class="chart-container">
+                        <svg></svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="chart-card">
+                    <h3 class="chart-title">Tags Distribution</h3>
+                    <div id="tags-chart" class="chart-container">
+                        <svg></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step Runtime Chart -->
+        <div class="chart-card mt-4">
+            <h3 class="chart-title">Average Step Runtime by Type</h3>
+            <div id="step-runtime-chart" class="chart-container">
+                <svg></svg>
+            </div>
+        </div>
+        
+        <!-- Recent Traces -->
+        <div class="chart-card mt-4">
+            <h3 class="chart-title">Recent Traces</h3>
+            <div class="recent-traces">
+                {% if recent_traces %}
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Status</th>
+                                <th>Runtime</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trace in recent_traces %}
+                            <tr>
+                                <td>{{ trace.run_id|truncatechars:8 }}</td>
+                                <td>
+                                    <span class="badge {% if trace.status == 'success' %}bg-success{% else %}bg-danger{% endif %}">
+                                        {{ trace.status }}
+                                    </span>
+                                </td>
+                                <td>{{ trace.runtime_seconds|floatformat:2 }}s</td>
+                                <td>{{ trace.created_at|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <a href="/trace/{{ trace.id }}/" class="btn btn-sm btn-primary">View</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="text-muted">No traces available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load the initial trace activity chart for 7 days
+    loadTraceActivityChart(7);
+    
+    // Load other charts
+    loadRuntimeDistributionChart();
+    loadTagsDistributionChart();
+    loadStepRuntimeChart();
+    
+    // Add event listeners to time filter buttons
+    document.querySelectorAll('.time-btn').forEach(function(button) {
+        button.addEventListener('click', function() {
+            // Update active button
+            document.querySelectorAll('.time-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            this.classList.add('active');
+            
+            // Load chart with selected days
+            loadTraceActivityChart(this.dataset.days);
+        });
+    });
+});
+
+function loadTraceActivityChart(days) {
+    fetch(`/api/analytics/traces_summary/?days=${days}`)
+        .then(response => response.json())
+        .then(data => {
+            nv.addGraph(function() {
+                const chart = nv.models.lineChart()
+                    .x(function(d) { return new Date(d.x); })
+                    .y(function(d) { return d.y; })
+                    .useInteractiveGuideline(true)
+                    .showLegend(false)
+                    .margin({left: 60, bottom: 70});
+                
+                chart.xAxis
+                    .tickFormat(function(d) {
+                        return d3.time.format('%Y-%m-%d')(new Date(d));
+                    })
+                    .rotateLabels(-45);
+                
+                chart.yAxis
+                    .tickFormat(d3.format(',f'))
+                    .axisLabel('Number of Traces');
+                
+                const chartData = [{
+                    key: 'Traces per day',
+                    color: '#0d6efd',
+                    values: data.dates.map((date, i) => {
+                        return {
+                            x: date,
+                            y: data.counts[i]
+                        };
+                    })
+                }];
+                
+                d3.select('#trace-activity-chart svg')
+                    .datum(chartData)
+                    .transition().duration(500)
+                    .call(chart);
+                
+                nv.utils.windowResize(chart.update);
+                
+                return chart;
+            });
+        })
+        .catch(error => console.error('Error loading trace activity chart:', error));
+}
+
+function loadRuntimeDistributionChart() {
+    fetch('/api/analytics/trace_stats/')
+        .then(response => response.json())
+        .then(data => {
+            const runtimeData = data.runtime_distribution;
+            
+            nv.addGraph(function() {
+                const chart = nv.models.discreteBarChart()
+                    .x(function(d) { return d.label; })
+                    .y(function(d) { return d.value; })
+                    .staggerLabels(true)
+                    .showValues(true)
+                    .margin({left: 50, bottom: 50});
+                
+                chart.yAxis
+                    .tickFormat(d3.format(',f'))
+                    .axisLabel('Number of Traces');
+                
+                const chartData = [{
+                    key: 'Runtime Distribution',
+                    values: runtimeData.labels.map((label, i) => {
+                        return {
+                            label: label,
+                            value: runtimeData.data[i]
+                        };
+                    })
+                }];
+                
+                d3.select('#runtime-chart svg')
+                    .datum(chartData)
+                    .transition().duration(500)
+                    .call(chart);
+                
+                nv.utils.windowResize(chart.update);
+                
+                return chart;
+            });
+        })
+        .catch(error => console.error('Error loading runtime chart:', error));
+}
+
+function loadTagsDistributionChart() {
+    fetch('/api/analytics/trace_stats/')
+        .then(response => response.json())
+        .then(data => {
+            const tagsData = data.tags_distribution;
+            
+            nv.addGraph(function() {
+                const chart = nv.models.pieChart()
+                    .x(function(d) { return d.label; })
+                    .y(function(d) { return d.value; })
+                    .showLabels(true)
+                    .labelThreshold(0.05)
+                    .donut(true)
+                    .donutRatio(0.35);
+                
+                const chartData = tagsData.labels.map((label, i) => {
+                    return {
+                        label: label,
+                        value: tagsData.data[i]
+                    };
+                });
+                
+                d3.select('#tags-chart svg')
+                    .datum(chartData)
+                    .transition().duration(500)
+                    .call(chart);
+                
+                nv.utils.windowResize(chart.update);
+                
+                return chart;
+            });
+        })
+        .catch(error => console.error('Error loading tags chart:', error));
+}
+
+function loadStepRuntimeChart() {
+    fetch('/api/analytics/trace_stats/')
+        .then(response => response.json())
+        .then(data => {
+            const stepData = data.step_runtime;
+            
+            nv.addGraph(function() {
+                const chart = nv.models.multiBarHorizontalChart()
+                    .x(function(d) { return d.label; })
+                    .y(function(d) { return d.value; })
+                    .showValues(true)
+                    .showLegend(false)
+                    .margin({left: 150, right: 50});
+                
+                chart.yAxis
+                    .tickFormat(d3.format('.2f'))
+                    .axisLabel('Average Runtime (seconds)');
+                
+                const chartData = [{
+                    key: 'Step Runtime',
+                    color: '#20c997',
+                    values: stepData.labels.map((label, i) => {
+                        return {
+                            label: label,
+                            value: stepData.data[i]
+                        };
+                    })
+                }];
+                
+                d3.select('#step-runtime-chart svg')
+                    .datum(chartData)
+                    .transition().duration(500)
+                    .call(chart);
+                
+                nv.utils.windowResize(chart.update);
+                
+                return chart;
+            });
+        })
+        .catch(error => console.error('Error loading step runtime chart:', error));
+}
+</script>
+{% endblock %} 

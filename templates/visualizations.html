@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Model Visualizations | TraceGPT{% endblock %}
+
+{% block extra_css %}
+<style>
+    .visualizations-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .chart-container {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+        padding: 20px;
+    }
+    
+    .chart-container h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #eee;
+        color: #333;
+    }
+    
+    .chart-img {
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+    }
+    
+    .nav-tabs {
+        margin-bottom: 20px;
+    }
+    
+    .nav-tabs .nav-link {
+        color: #495057;
+        border: 1px solid transparent;
+        border-top-left-radius: .25rem;
+        border-top-right-radius: .25rem;
+        padding: .5rem 1rem;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: #007bff;
+        background-color: #fff;
+        border-color: #dee2e6 #dee2e6 #fff;
+        font-weight: bold;
+    }
+    
+    .tab-pane {
+        padding: 15px 0;
+    }
+    
+    .model-header {
+        background-color: #f8f9fa;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 8px;
+        border-left: 5px solid #007bff;
+    }
+    
+    .model-header h2 {
+        margin: 0;
+        color: #333;
+    }
+    
+    @media (max-width: 768px) {
+        .col-md-6 {
+            margin-bottom: 20px;
+        }
+    }
+    
+    /* Dark mode styles */
+    @media (prefers-color-scheme: dark) {
+        .chart-container {
+            background-color: #343a40;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .chart-container h3 {
+            color: #f8f9fa;
+            border-bottom-color: #495057;
+        }
+        
+        .model-header {
+            background-color: #2c3034;
+            border-left-color: #0069d9;
+        }
+        
+        .model-header h2 {
+            color: #f8f9fa;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: #0d6efd;
+            background-color: #343a40;
+            border-color: #495057 #495057 #343a40;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="visualizations-container">
+    <div class="model-header">
+        <h2>TraceGPT Model Visualizations</h2>
+        <p>Interactive visualizations for all models and their relationships</p>
+    </div>
+    
+    <ul class="nav nav-tabs" id="modelTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <a class="nav-link active" id="overview-tab" data-toggle="tab" href="#overview" role="tab" aria-controls="overview" aria-selected="true">Overview</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="chatexample-tab" data-toggle="tab" href="#chatexample" role="tab" aria-controls="chatexample" aria-selected="false">Chat Examples</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="chattrace-tab" data-toggle="tab" href="#chattrace" role="tab" aria-controls="chattrace" aria-selected="false">Chat Traces</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="tracestep-tab" data-toggle="tab" href="#tracestep" role="tab" aria-controls="tracestep" aria-selected="false">Trace Steps</a>
+        </li>
+        <li class="nav-item" role="presentation">
+            <a class="nav-link" id="contact-tab" data-toggle="tab" href="#contact" role="tab" aria-controls="contact" aria-selected="false">Contact Messages</a>
+        </li>
+    </ul>
+    
+    <div class="tab-content" id="modelTabContent">
+        <!-- Overview Tab -->
+        <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Record Count by Model</h3>
+                        <img src="data:image/png;base64,{{ visualizations.model_counts }}" class="chart-img" alt="Model Record Counts">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Examples vs Traces Over Time</h3>
+                        <img src="data:image/png;base64,{{ visualizations.examples_vs_traces }}" class="chart-img" alt="Examples vs Traces">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Weekly Activity Heatmap</h3>
+                        <img src="data:image/png;base64,{{ visualizations.weekly_activity }}" class="chart-img" alt="Weekly Activity Heatmap">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Performance Comparison by Tag</h3>
+                        <img src="data:image/png;base64,{{ visualizations.tag_comparison_radar }}" class="chart-img" alt="Tag Comparison Radar">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Example Tab -->
+        <div class="tab-pane fade" id="chatexample" role="tabpanel" aria-labelledby="chatexample-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h3>Tag Distribution in Chat Examples</h3>
+                        <img src="data:image/png;base64,{{ visualizations.chat_examples_tags }}" class="chart-img" alt="Chat Examples Tags Distribution">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Trace Tab -->
+        <div class="tab-pane fade" id="chattrace" role="tabpanel" aria-labelledby="chattrace-tab">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Runtime Distribution</h3>
+                        <img src="data:image/png;base64,{{ runtime_distribution_img }}" class="chart-img" alt="Runtime Distribution">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Chat Trace Runtime Over Time</h3>
+                        <img src="data:image/png;base64,{{ visualizations.chat_trace_runtime }}" class="chart-img" alt="Chat Trace Runtime">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Traces by Date</h3>
+                        <img src="data:image/png;base64,{{ traces_by_date_img }}" class="chart-img" alt="Traces by Date">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Tags Distribution</h3>
+                        <img src="data:image/png;base64,{{ tags_distribution_img }}" class="chart-img" alt="Tags Distribution">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Trace Step Tab -->
+        <div class="tab-pane fade" id="tracestep" role="tabpanel" aria-labelledby="tracestep-tab">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Runtime by Step Type</h3>
+                        <img src="data:image/png;base64,{{ step_runtime_img }}" class="chart-img" alt="Step Runtime">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="chart-container">
+                        <h3>Step Runtime Distribution</h3>
+                        <img src="data:image/png;base64,{{ visualizations.trace_step_boxplot }}" class="chart-img" alt="Step Runtime Distribution">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Contact Message Tab -->
+        <div class="tab-pane fade" id="contact" role="tabpanel" aria-labelledby="contact-tab">
+            <div class="row">
+                <div class="col-12">
+                    <div class="chart-container">
+                        <h3>Contact Message Status by Month</h3>
+                        <img src="data:image/png;base64,{{ visualizations.contact_message_status }}" class="chart-img" alt="Contact Message Status">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Handle tab navigation with URL hash
+        var hash = window.location.hash;
+        if (hash) {
+            $('#modelTabs a[href="' + hash + '"]').tab('show');
+        }
+        
+        // Update URL hash when tab changes
+        $('#modelTabs a').on('shown.bs.tab', function (e) {
+            window.location.hash = e.target.hash;
+        });
+    });
+</script>
+{% endblock %} 
